@@ -1,0 +1,79 @@
+const MY_API_KEY = "AQ.Ab8RN6JcAnyu1WAVYq65RYsZk-QfquX48sQnEqn-GV3img_PPw"; 
+
+async function checkDocumentAI() {
+  const statusDiv = document.getElementById('status');
+  const resultCard = document.getElementById('resultCard');
+  const resultDiv = document.getElementById('result');
+
+  const docs = [
+    { name: "1. ใบ ปร.4", input: document.getElementById('doc1') },
+    { name: "2. ใบ ปร.5", input: document.getElementById('doc2') },
+    { name: "3. สำเนาบัตรประชาชน", input: document.getElementById('doc3') },
+    { name: "4. สำเนาทะเบียนบ้าน", input: document.getElementById('doc4') },
+    { name: "5. สำเนาโฉนดที่ดิน/เอกสารสิทธิ์", input: document.getElementById('doc5') }
+  ];
+
+  const partsPayload = [];
+  let uploadedCount = 0;
+
+  for (const doc of docs) {
+    if (doc.input && doc.input.files && doc.input.files.length > 0) {
+      uploadedCount++;
+      const file = doc.input.files[0];
+      const base64Data = await convertToBase64(file);
+      partsPayload.push({
+        inline_data: { mime_type: file.type, data: base64Data }
+      });
+    }
+  }
+
+  if (uploadedCount === 0) {
+    alert('กรุณาแนบรูปภาพเอกสารอย่างน้อย 1 รายการเพื่อตรวจสอบ');
+    return;
+  }
+
+  statusDiv.style.display = 'block';
+  statusDiv.innerText = `⏳ AI กำลังอ่านและวิเคราะห์เอกสาร ${uploadedCount} รายการ...`;
+  resultCard.style.display = 'none';
+
+  const promptText = `คุณคือเจ้าหน้าที่ตรวจเอกสาร โปรดอ่านและถอดข้อความภาษาไทยจากรูปภาพทั้งหมดให้ถูกต้องแม่นยำ:
+- ถ้าเป็นบัตรประชาชน ให้ระบุ: เลขบัตรประชาชน, ชื่อ-นามสกุล, วันเกิด, ที่อยู่
+- ถ้าเป็นเอกสาร ปร.4 / ปร.5 ให้สรุป: รายการงานปรับปรุง และงบประมาณรวม
+- สรุปผลเป็นภาษาไทยให้อ่านง่าย ชัดเจน และเป็นทางการ`;
+
+  partsPayload.unshift({ text: promptText });
+
+  try {
+   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${MY_API_KEY}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: partsPayload }] })
+    });
+
+    const data = await response.json();
+
+    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+      statusDiv.style.display = 'none';
+      resultDiv.innerText = data.candidates[0].content.parts[0].text;
+      resultCard.style.display = 'block';
+    } else if (data.error) {
+      statusDiv.innerText = '❌ เกิดข้อผิดพลาดจาก API: ' + data.error.message;
+    } else {
+      statusDiv.innerText = '❌ ไม่สามารถอ่านเอกสารได้ โปรดลองใหม่อีกครั้ง';
+    }
+  } catch (err) {
+    console.error(err);
+    statusDiv.innerText = '❌ การเชื่อมต่อขัดข้อง: ' + err.message;
+  }
+}
+
+function convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = err => reject(err);
+  });
+}

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบตรวจสอบเอกสารผู้สูงอายุ - พมจ.สกลนคร</title>
+  
+  <!-- ดึงไลบรารี Tesseract.js (OCR ฟรี ไม่ต้องใช้ API Key) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sarabun', sans-serif; background-color: #fdf2f8; color: #0f172a; padding: 30px 15px; line-height: 1.6; }
+    
+    .app-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(219, 39, 119, 0.08);
+      border: 1px solid #fbcfe8;
+      overflow: hidden;
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, #db2777 0%, #be185d 100%);
+      color: #ffffff;
+      padding: 24px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 4px solid #f472b6;
+    }
+
+    .brand { display: flex; align-items: center; gap: 16px; }
+    
+    .brand-logo {
+      background: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      width: 60px;
+      height: 60px;
+      flex-shrink: 0;
+      padding: 2px;
+      overflow: hidden;
+    }
+
+    .brand-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .brand-info h2 { font-size: 20px; font-weight: 700; color: #ffffff; }
+    .brand-info p { font-size: 13px; color: #fbcfe8; }
+    .system-badge { background: rgba(255, 255, 255, 0.2); color: #ffffff; border: 1px solid #f472b6; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+    .main-content { padding: 30px; }
+
+    .form-card {
+      background: #ffffff;
+      border: 1px solid #fbcfe8;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .card-title { font-size: 16px; color: #9d174d; margin-bottom: 14px; font-weight: 700; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+
+    .input-group label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+    .input-group input { width: 100%; padding: 10px 14px; border: 1px solid #f472b6; border-radius: 6px; font-size: 14px; font-family: 'Sarabun', sans-serif; }
+    .input-group input[readonly] { background-color: #fdf2f8; color: #be185d; font-weight: 600; }
+
+    .doc-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #be185d;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .doc-upload-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .doc-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fdf2f8;
+      border: 1px solid #fbcfe8;
+      border-radius: 8px;
+      padding: 12px 16px;
+      gap: 12px;
+    }
+
+    .doc-info { flex: 1; }
+    .doc-name { font-size: 14px; font-weight: 600; color: #831843; }
+    .doc-desc { font-size: 12px; color: #64748b; }
+    .doc-file-input { font-size: 13px; max-width: 250px; }
+
+    .btn-primary {
+      width: 100%;
+      background: #db2777;
+      color: #ffffff;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(219, 39, 119, 0.3);
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #be185d; }
+
+    .status-alert {
+      margin-top: 20px;
+      padding: 14px;
+      background-color: #fef3c7;
+      color: #92400e;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      border: 1px solid #fde68a;
+    }
+
+    .result-card {
+      margin-top: 24px;
+      border: 1px solid #fbcfe8;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .result-header { background: #fdf2f8; padding: 12px 20px; border-bottom: 1px solid #fbcfe8; }
+    .result-header h4 { font-size: 15px; color: #9d174d; }
+    .result-body { padding: 20px; background: #ffffff; white-space: pre-wrap; line-height: 1.7; font-size: 14.5px; color: #334155; }
+
+    .app-footer { background-color: #fdf2f8; border-top: 1px solid #fbcfe8; padding: 16px; text-align: center; font-size: 12px; color: #9d174d; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Emblem_of_the_Ministry_of_Social_Development_and_Human_Security.svg/512px-Emblem_of_the_Ministry_of_Social_Development_and_Human_Security.svg.png" alt="ตรากระทรวง พม.">
+        </div>
+        <div class="brand-info">
+          <h2>ระบบตรวจสอบเอกสารผู้สูงอายุ (พมจ.สกลนคร)</h2>
+          <p>การปรับสภาพแวดล้อมและสิ่งอำนวยความสะดวกสำหรับผู้สูงอายุ (Offline Mode)</p>
+        </div>
+      </div>
+      <span class="system-badge">พมจ.สกลนคร</span>
+    </header>
+
+    <main class="main-content">
+      <div class="form-card">
+        <h3 class="card-title">📍 ข้อมูลหน่วยงานที่ยื่นเรื่อง</h3>
+        <div class="form-grid">
+          <div class="input-group">
+            <label>จังหวัด</label>
+            <input type="text" id="provinceSelect" value="สกลนคร" readonly />
+          </div>
+          <div class="input-group">
+            <label for="optName">ชื่อ อปท. (เทศบาล / อบต. ใน จ.สกลนคร)</label>
+            <input type="text" id="optName" placeholder="เช่น อบต.พังขว้าง, เทศบาลนครสกลนคร" />
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-section-title">
+        <span>📋</span> แนบรูปภาพเอกสาร 5 รายการ (เลือกอย่างน้อย 1 รายการเพื่อตรวจ)
+      </div>
+
+      <div class="doc-upload-grid">
+        <div class="doc-item">
+          <div class="doc-info">
+            <div class="doc-name">1. ใบ ปร.4</div>
+            <div class="doc-desc">แบบสรุปรายการประมาณราคาจัดซื้อ/จัดจ้าง</div>
+          </div>
+          <input type="file" id="doc1" class="doc-file-input" accept="image/*" />
+        </div>
+
+        <div class="doc-item">
+          <div class="doc-info">
+            <div class="doc-name">2. ใบ ปร.5</div>
+            <div class="doc-desc">แบบสรุปค่าปรับสภาพแวดล้อมและสิ่งอำนวยความสะดวก</div>
+          </div>
+          <input type="file" id="doc2" class="doc-file-input" accept="image/*" />
+        </div>
+
+        <div class="doc-item">
+          <div class="doc-info">
+            <div class="doc-name">3. สำเนาบัตรประชาชน</div>
+            <div class="doc-desc">บัตรประจำตัวประชาชนของผู้สูงอายุที่ขอรับการช่วยเหลือ</div>
+          </div>
+          <input type="file" id="doc3" class="doc-file-input" accept="image/*" />
+        </div>
+
+        <div class="doc-item">
+          <div class="doc-info">
+            <div class="doc-name">4. สำเนาทะเบียนบ้าน</div>
+            <div class="doc-desc">ทะเบียนบ้านที่ตรงกับสถานที่ปรับปรุงสภาพแวดล้อม</div>
+          </div>
+          <input type="file" id="doc4" class="doc-file-input" accept="image/*" />
+        </div>
+
+        <div class="doc-item">
+          <div class="doc-info">
+            <div class="doc-name">5. สำเนาโฉนดที่ดิน / เอกสารสิทธิ์</div>
+            <div class="doc-desc">โฉนดที่ดิน หรือหนังสือยินยอมให้ปรับปรุงบ้าน</div>
+          </div>
+          <input type="file" id="doc5" class="doc-file-input" accept="image/*" />
+        </div>
+      </div>
+
+   <!-- 1. ส่วนปุ่มกด -->
+<button type="button" class="btn-primary" id="btnAnalyze">
+  <span>🔍</span> เริ่มการวิเคราะห์เอกสารด้วย AI
+</button>
+
+<!-- 2. ส่วนสคริปต์เชื่อมต่อ AI (รวมไว้ในช่อง HTML เดียวกัน) -->
+<script>
+const MY_API_KEY = "AQ.Ab8RN6JcAnyu1WAVYq65RYsZk-QfquX48sQnEqn-GV3img_PPw"; 
+
+document.addEventListener("DOMContentLoaded", initAI);
+setTimeout(initAI, 500); // สำรองสำหรับ CodePen Preview
+
+function initAI() {
+  const btn = document.getElementById("btnAnalyze");
+  if (btn) {
+    btn.onclick = checkDocumentAI;
+  }
+}
+
+async function checkDocumentAI() {
+  const statusDiv = document.getElementById('status');
+  const resultCard = document.getElementById('resultCard');
+  const resultDiv = document.getElementById('result');
+
+  const docs = [
+    { name: "1. ใบ ปร.4", input: document.getElementById('doc1') },
+    { name: "2. ใบ ปร.5", input: document.getElementById('doc2') },
+    { name: "3. สำเนาบัตรประชาชน", input: document.getElementById('doc3') },
+    { name: "4. สำเนาทะเบียนบ้าน", input: document.getElementById('doc4') },
+    { name: "5. สำเนาโฉนดที่ดิน/เอกสารสิทธิ์", input: document.getElementById('doc5') }
+  ];
+
+  const partsPayload = [];
+  let uploadedCount = 0;
+
+  for (const doc of docs) {
+    if (doc.input && doc.input.files && doc.input.files.length > 0) {
+      uploadedCount++;
+      const file = doc.input.files[0];
+      const base64Data = await convertToBase64(file);
+      partsPayload.push({
+        inline_data: { mime_type: file.type, data: base64Data }
+      });
+    }
+  }
+
+  if (uploadedCount === 0) {
+    alert('กรุณาแนบรูปภาพเอกสารอย่างน้อย 1 รายการเพื่อตรวจสอบ');
+    return;
+  }
+
+  if (statusDiv) {
+    statusDiv.style.display = 'block';
+    statusDiv.innerText = `⏳ AI กำลังอ่านและวิเคราะห์เอกสาร ${uploadedCount} รายการ...`;
+  }
+  if (resultCard) resultCard.style.display = 'none';
+
+  const promptText = `คุณคือเจ้าหน้าที่ตรวจเอกสาร โปรดอ่านและถอดข้อความภาษาไทยจากรูปภาพทั้งหมดให้ถูกต้องแม่นยำ:
+- ถ้าเป็นบัตรประชาชน ให้ระบุ: เลขบัตรประชาชน, ชื่อ-นามสกุล, วันเกิด, ที่อยู่
+- ถ้าเป็นเอกสาร ปร.4 / ปร.5 ให้สรุป: รายการงานปรับปรุง และงบประมาณรวม
+- สรุปผลเป็นภาษาไทยให้อ่านง่าย ชัดเจน และเป็นทางการ`;
+
+  partsPayload.unshift({ text: promptText });
+
+  try {
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${MY_API_KEY}`;
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: partsPayload }] })
+    });
+
+    const data = await response.json();
+
+    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+      if (statusDiv) statusDiv.style.display = 'none';
+      if (resultDiv) resultDiv.innerText = data.candidates[0].content.parts[0].text;
+      if (resultCard) resultCard.style.display = 'block';
+    } else if (data.error) {
+      if (statusDiv) statusDiv.innerText = '❌ เกิดข้อผิดพลาดจาก API: ' + data.error.message;
+    } else {
+      if (statusDiv) statusDiv.innerText = '❌ ไม่สามารถอ่านเอกสารได้ โปรดลองใหม่อีกครั้ง';
+    }
+  } catch (err) {
+    console.error(err);
+    if (statusDiv) statusDiv.innerText = '❌ การเชื่อมต่อขัดข้อง: ' + err.message;
+  }
+}
+
+function convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = err => reject(err);
+  });
+}
+</script>
+
+      <div id="status" class="status-alert" style="display: none;"></div>
+      
+      <div id="resultCard" class="result-card" style="display: none;">
+        <div class="result-header">
+          <h4>📊 รายงานการตรวจอ่านเอกสาร (เสนอ พมจ.สกลนคร)</h4>
+        </div>
+        <div id="result" class="result-body"></div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>© ระบบสนับสนุนการดำเนินงานปรับสภาพแวดล้อมผู้สูงอายุ | สำนักงานพัฒนาสังคมและความมั่นคงของมนุษย์จังหวัดสกลนคร</p>
+    </footer>
+  </div>
+
+  <script>
+    async function checkDocumentLocal() {
+      const optName = document.getElementById('optName').value.trim();
+      const statusDiv = document.getElementById('status');
+      const resultCard = document.getElementById('resultCard');
+      const resultDiv = document.getElementById('result');
+
+      if (!optName) {
+        alert('กรุณากรอกชื่อ อปท. ในจังหวัดสกลนคร ก่อนครับ');
+        return;
+      }
+
+      const docs = [
+        { name: "1. ใบ ปร.4", input: document.getElementById('doc1') },
+        { name: "2. ใบ ปร.5", input: document.getElementById('doc2') },
+        { name: "3. สำเนาบัตรประชาชน", input: document.getElementById('doc3') },
+        { name: "4. สำเนาทะเบียนบ้าน", input: document.getElementById('doc4') },
+        { name: "5. สำเนาโฉนดที่ดิน/เอกสารสิทธิ์", input: document.getElementById('doc5') }
+      ];
+
+      const activeDocs = docs.filter(doc => doc.input && doc.input.files.length > 0);
+
+      if (activeDocs.length === 0) {
+        alert('กรุณาแนบรูปภาพเอกสารอย่างน้อย 1 ช่องครับ');
+        return;
+      }
+
+      statusDiv.style.display = 'block';
+      resultCard.style.display = 'none';
+      resultDiv.innerText = '';
+
+      let finalReport = `📌 รายงานการตรวจสอบเอกสารเบื้องต้น (แบบใช้เครื่องสแกนในตัว)\n`;
+      finalReport += `หน่วยงานที่ยื่น: อปท. ${optName} จ.สกลนคร\n`;
+      finalReport += `จำนวนเอกสารที่แนบ: ${activeDocs.length} / 5 รายการ\n`;
+      finalReport += `--------------------------------------------------\n\n`;
+
+      try {
+        for (let i = 0; i < activeDocs.length; i++) {
+          const doc = activeDocs[i];
+          const file = doc.input.files[0];
+
+          statusDiv.innerText = `⏳ กำลังอ่านข้อความจาก [${doc.name}] (${i + 1}/${activeDocs.length}) ... (ครั้งแรกอาจใช้เวลานานเพื่อโหลดภาษาไทย)`;
+
+          // ใช้ Tesseract.js อ่านภาษาไทย (tha) + อังกฤษ (eng)
+          const worker = await Tesseract.createWorker(['tha', 'eng']);
+          const ret = await worker.recognize(file);
+          await worker.terminate();
+
+          const extractedText = ret.data.text.trim();
+
+          finalReport += `📄 รายการที่ ${i + 1}: ${doc.name}\n`;
+          finalReport += `สถานะ: แนบเอกสารเรียบร้อย\n`;
+          finalReport += `ข้อความที่สแกนพบได้:\n`;
+          finalReport += extractedText ? `"${extractedText.substring(0, 300)}${extractedText.length > 300 ? '...' : ''}"` : `(อ่านข้อความจากภาพไม่ได้ อาจเป็นเพราะภาพไม่ชัดหรือมีเฉพาะลายมือ)`;
+          finalReport += `\n--------------------------------------------------\n\n`;
+        }
+
+        statusDiv.style.display = 'none';
+        resultDiv.innerText = finalReport;
+        resultCard.style.display = 'block';
+
+      } catch (err) {
+        console.error(err);
+        statusDiv.innerText = '❌ เกิดข้อผิดพลาดขณะอ่านเอกสาร: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
